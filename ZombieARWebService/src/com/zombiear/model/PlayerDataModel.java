@@ -7,11 +7,17 @@ public class PlayerDataModel {
 	private String username;
 	private boolean zombie;
 	private List<PlayerItem> playerItems;
+	private double infectionRange = 0.0;
 		
+	public PlayerDataModel(String username, boolean isZombie, List<PlayerItem> items, double infectionRange){
+		this(username, isZombie, items);
+		this.infectionRange = infectionRange;
+	}
+	
 	public PlayerDataModel(String username, boolean isZombie, List<PlayerItem> items){
 		this.username = username;
 		this.zombie = isZombie;
-		this.playerItems = items;		
+		this.playerItems = items;
 	}
 
 	public String getUsername() {
@@ -37,7 +43,12 @@ public class PlayerDataModel {
 	public void setPlayerItems(List<PlayerItem> playerItems) {
 		this.playerItems = playerItems;
 	}
-	
-	
 
+	public double getInfectionRange() {
+		return infectionRange;
+	}
+
+	public void setInfectionRange(double infectionRange) {
+		this.infectionRange = infectionRange;
+	}
 }

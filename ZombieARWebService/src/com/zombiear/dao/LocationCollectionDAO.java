@@ -32,7 +32,7 @@ public class LocationCollectionDAO {
 			coll.update(query, update);			
 		}else{
 			BasicDBObject insert = new BasicDBObject("username",username).append("longitude", longitude).append("latitude", latitude);
-			coll.insert(query, insert);
+			coll.insert(insert);
 		}
 		return true;
 	}

@@ -42,6 +42,8 @@ public class ClientService extends HttpServlet {
 
 	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 		String payload = request.getParameter("payload");
+		System.out.print("Received " + payload);
+		
 		JSONObject parameters = JSONObject.fromObject(payload);
 				
 		String action =  parameters.getString("action");
@@ -62,6 +64,18 @@ public class ClientService extends HttpServlet {
 		}else if(action.equals("findzombies")){
 			System.out.println("Find Zombies");
 			responsePayload = doFindZombies();
+		}else if(action.equals("findhumans")){
+			System.out.println("Find Players");
+			responsePayload = doFindHumans();
+		}else if(action.equals("getbundle")){
+			System.out.println("GetDataBundle");
+			String username = parameters.optString("username");
+			responsePayload = doGetDataBundle(username);			
+		}else if(action.equals("infect")){
+			System.out.println("Infection");
+			String zombieUsername = parameters.optString("username",null);
+			String humanUsername = parameters.optString("targetname",null);
+			doInfectTarget(zombieUsername, humanUsername);
 		}
 		
 		response.setContentType("application/json");
@@ -74,9 +88,12 @@ public class ClientService extends HttpServlet {
 		UserCollectionDAO loginDAO = new UserCollectionDAO(username,password);
 		String result = loginDAO.query();
 		if(result != null){
-			return JSONObject.fromObject("{result:0,username:'" + username +"'}");
+			JSONObject payload = new JSONObject();
+			return doGetDataBundle(username);
 		}else{
-			return JSONObject.fromObject("{result:1}");
+			JSONObject payload = new JSONObject();
+			payload.put("result", 1);
+			return payload;
 		}
 	}
 	
@@ -86,15 +103,17 @@ public class ClientService extends HttpServlet {
 		if(result){
 			PlayerDataModel playerData = null;
 			if(username.contains("zombie")){
-				playerData = new PlayerDataModel(username,true,new ArrayList<PlayerItem>());
+				playerData = new PlayerDataModel(username,true,new ArrayList<PlayerItem>(),10.0);
 			}else{
 				playerData = new PlayerDataModel(username,false,new ArrayList<PlayerItem>());
 			}
 			PlayerCollectionDAO playerCollectionDAO = new PlayerCollectionDAO(playerData);
 			playerCollectionDAO.addPlayerData();			
-			return JSONObject.fromObject("{result:0,username:'" + username +"'}");
+			return doGetDataBundle(username);
 		}else{
-			return JSONObject.fromObject("{result:1}");
+			JSONObject payload = new JSONObject();
+			payload.put("result", 1);
+			return payload;
 		}
 	}
 	
@@ -104,7 +123,72 @@ public class ClientService extends HttpServlet {
 		return JSONObject.fromObject("{result:0}");		
 	}
 	
+	
+	public JSONObject doGetDataBundle(String username){
+		JSONArray zombieArray = findPlayers(true);
+		JSONArray humanArray = findPlayers(false);
+		JSONObject playerData = findPlayer(username);
+		//resources
+		
+		JSONObject payload = new JSONObject();
+		payload.put("ZombieData", zombieArray);
+		payload.put("HumanData", humanArray);
+		payload.put("PlayerData", playerData);
+		payload.put("result", 0);
+		return payload;
+		
+	}
+		
 	public JSONObject doFindZombies(){
+		JSONObject result = new JSONObject();
+		result.put("result", 0);
+		result.put("locdata", findPlayers(true));		
+		return result;		
+	}
+	
+	public JSONObject doFindHumans(){		
+		JSONObject result = new JSONObject();
+		result.put("result", 0);
+		result.put("locdata", findPlayers(false));		
+		return result;	
+	}
+	
+	public JSONObject doInfectTarget(String username, String targetName){
+		return null;
+		
+	}
+	
+	private JSONObject findPlayer(String username){
+		DB db = MongoDAOManager.getInstance().getDatabase();
+		DBCollection coll = db.getCollection("playerdata");
+		DBObject obj = coll.findOne(new BasicDBObject("username",username));
+		
+		DBCollection locColl = db.getCollection("locations");										
+		DBObject locationObject = locColl.findOne(new BasicDBObject("username",username));					
+		
+		JSONObject json = JSONObject.fromObject(obj.toString());
+		String username1 = json.optString("username", "");		
+		boolean isZombie = json.optBoolean("isZombie",false);
+		double range = json.optDouble("infectionRange", 10.0);
+		
+		JSONObject playerJSON = new JSONObject();
+		playerJSON.put("username", username1);
+		if(locationObject !=null){
+			JSONObject locJSON = JSONObject.fromObject(locationObject.toString());
+			double longitude = locJSON.optDouble("longitude", 0.0);
+			double latitude = locJSON.optDouble("latitude", 0.0);	
+			playerJSON.put("longitude", longitude);
+			playerJSON.put("latitude",latitude);
+		}else{
+			playerJSON.put("longitude", 0.0);
+			playerJSON.put("latitude",0.0);
+		}
+		playerJSON.put("infectionRange", range);
+		playerJSON.put("isZombie", isZombie);
+		return playerJSON;
+	}
+	
+	private JSONArray findPlayers(boolean filterZombie){
 		DB db = MongoDAOManager.getInstance().getDatabase();
 		DBCollection coll = db.getCollection("playerdata");
 		
@@ -116,28 +200,27 @@ public class ClientService extends HttpServlet {
 			if(playerdata == null) continue;
 			JSONObject json = JSONObject.fromObject(playerdata.toString());
 			boolean isZombie = json.optBoolean("isZombie", false);
-			if(isZombie){
-				
+			if(isZombie == filterZombie){				
 				JSONObject obj = new JSONObject();
 				String userName = json.optString("username", "");
 				if(userName.length() > 0){
 					DBCollection locColl = db.getCollection("locations");										
-					DBObject locationObject = locColl.findOne(new BasicDBObject("username",userName));
-					JSONObject locJSON = JSONObject.fromObject(locationObject.toString());
-					double longitude = locJSON.optDouble("longitude", 0.0);
-					double latitude = locJSON.optDouble("latitude", 0.0);										
+					DBObject locationObject = locColl.findOne(new BasicDBObject("username",userName));					
+					double infectionRange = json.optDouble("infectionRange", 10.0);					
 					obj.put("username", userName);
-					obj.put("longitude", longitude);
-					obj.put("latitude",latitude);
+					if(locationObject!=null){
+						JSONObject locJSON = JSONObject.fromObject(locationObject.toString());
+						double longitude = locJSON.optDouble("longitude", 0.0);
+						double latitude = locJSON.optDouble("latitude", 0.0);		
+						obj.put("longitude", longitude);
+						obj.put("latitude",latitude);
+					}
+					obj.put("infectionRange", infectionRange);
+					obj.put("isZombie", isZombie);
 					arr.add(obj);
 				}
 			}			
 		}
-		
-		JSONObject result = new JSONObject();
-		result.put("result", 0);
-		result.put("locdata", arr);		
-		return result;
-		
-	}
+		return arr;
+	}	
 }
