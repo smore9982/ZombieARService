@@ -25,6 +25,7 @@ import com.zombiear.dao.PlayerCollectionDAO;
 import com.zombiear.dao.UserCollectionDAO;
 import com.zombiear.model.PlayerDataModel;
 import com.zombiear.model.PlayerItem;
+import com.zombiear.util.Util;
 
 
 
@@ -75,7 +76,7 @@ public class ClientService extends HttpServlet {
 			System.out.println("Infection");
 			String zombieUsername = parameters.optString("username",null);
 			String humanUsername = parameters.optString("targetname",null);
-			doInfectTarget(zombieUsername, humanUsername);
+			responsePayload = doInfectTarget(zombieUsername, humanUsername);
 		}
 		
 		response.setContentType("application/json");
@@ -107,8 +108,8 @@ public class ClientService extends HttpServlet {
 			}else{
 				playerData = new PlayerDataModel(username,false,new ArrayList<PlayerItem>());
 			}
-			PlayerCollectionDAO playerCollectionDAO = new PlayerCollectionDAO(playerData);
-			playerCollectionDAO.addPlayerData();			
+			PlayerCollectionDAO playerCollectionDAO = new PlayerCollectionDAO();
+			playerCollectionDAO.addPlayerData(playerData);			
 			return doGetDataBundle(username);
 		}else{
 			JSONObject payload = new JSONObject();
@@ -118,8 +119,8 @@ public class ClientService extends HttpServlet {
 	}
 	
 	public JSONObject doLocationUpdate(String username, double longitude, double latitude){
-		LocationCollectionDAO locationDAO = new LocationCollectionDAO(username,longitude,latitude);
-		locationDAO.updateLocation();
+		LocationCollectionDAO locationDAO = new LocationCollectionDAO();
+		locationDAO.updateLocation(username,longitude,latitude);
 		return JSONObject.fromObject("{result:0}");		
 	}
 	
@@ -154,7 +155,36 @@ public class ClientService extends HttpServlet {
 	}
 	
 	public JSONObject doInfectTarget(String username, String targetName){
-		return null;
+		LocationCollectionDAO locDAO = new LocationCollectionDAO();
+		PlayerCollectionDAO playerDAO = new PlayerCollectionDAO();
+		double playerCoord[] = locDAO.getLocation(username);
+		double targetCoord[] = locDAO.getLocation(targetName);
+		PlayerDataModel playerModel = playerDAO.getPlayerData(username);
+		PlayerDataModel targetModel = playerDAO.getPlayerData(targetName);
+		
+		JSONObject result = new JSONObject();
+		if(playerCoord !=null && targetCoord!=null && playerModel !=null && targetModel !=null){
+			double distance = Util.getDistanceFromLatLon(playerCoord[0], playerCoord[1], targetCoord[0], targetCoord[1]);					
+			if(distance <= playerModel.getInfectionRange()){
+				targetModel.setZombie(true);
+				playerDAO.addPlayerData(targetModel);
+				result.put("result", 0);
+				result.put("username", username);
+				result.put("target", targetName);
+				result.put("msg", "You have infected "+ targetName);
+			}else{
+				result.put("result", 1);
+				result.put("username", username);
+				result.put("target", targetName);
+				result.put("msg", "You failed to infect "+ targetName);
+			}
+		}else{
+			result.put("result", 1);
+			result.put("username", username);
+			result.put("target", targetName);
+			result.put("msg", "You failed to infect "+ targetName);
+		}
+		return result;
 		
 	}
 	

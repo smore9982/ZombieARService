@@ -6,6 +6,8 @@ public class PlayerDataModel {
 	
 	private String username;
 	private boolean zombie;
+	private double longitude;
+	private double latitude;
 	private List<PlayerItem> playerItems;
 	private double infectionRange = 0.0;
 		
